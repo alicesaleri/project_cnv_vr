@@ -3,9 +3,10 @@
 samples = '*.bam*'
 
 process insurveyor_calling {
-	cpus 2	
-	maxForks 8
+	cpus 8
+	maxForks 4
 	module 'INSurVeyor'
+	memory '40GB'
 	publishDir "insurveyor_vcf"
 	input:
 		tuple val(core), path(f)
@@ -14,9 +15,9 @@ process insurveyor_calling {
 	script:
 	out="${core}.vcf.gz"
 	"""
-	mkdir ${core}.vcf.gz
-	chmod a+wrx ${core}.vcf.gz
-	insurveyor.py --threads 4 ${f[0]} ./ ${params.genome}
+	set -euxo pipefail
+	insurveyor.py --threads 8 ${f[0]} ./ ${params.genome}
+	mv out.pass.vcf.gz ${out}
 	"""	
  }
 
@@ -26,7 +27,6 @@ workflow {
 
 	 main:
 		insurveyor_calling(input)
-	        input.view()
 
 }
                                               
