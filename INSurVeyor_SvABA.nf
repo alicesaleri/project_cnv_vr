@@ -30,13 +30,18 @@ process svaba_calling {
 	input:
 		tuple val(core), path(f)
 	output:
-		path("${core}.vcf.gz")
+  		path("${core}.svaba.sv.vcf.gz")
+	        
 	script:
-	out="${core}.vcf.gz"
+	out1="${core}.svaba.sv.vcf.gz"
+	out2="${core}.svaba.indel.vcf.gz"
+	out3="${core}.svaba.log"
 	"""
 	set -euxo pipefail
 	svaba run -p 4 -G ${params.genome} -t ${f[0]} -z ./
-	mv out.pass.vcf.gz ${out}
+	mv no_id.svaba.sv.vcf.gz ${out1}
+	mv no_id.svaba.indel.vcf.gz ${out2}
+	mv no_id.svaba.log ${out3}
 	"""	
  }
 
