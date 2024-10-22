@@ -1,6 +1,7 @@
 #!/usr/bin/env nextflow
 
 samples = '*.bam*'
+samples = 'LP6005443-DNA_D01*bam*'
 
 process insurveyor_calling {
 	cpus 8
@@ -22,7 +23,7 @@ process insurveyor_calling {
  }
 
 process svaba_calling {
-	cpus 8
+	cpus 24
 	maxForks 4
 	module 'svaba'
 	memory '40GB'
@@ -30,29 +31,31 @@ process svaba_calling {
 	input:
 		tuple val(core), path(f)
 	output:
-  		path("${core}.svaba.sv.vcf.gz")
-	        
+  		path("${core}.vcf.gz")
+		path("${core}.vcf.gz.tbi")  
 	script:
 	out1="${core}.svaba.sv.vcf.gz"
 	out2="${core}.svaba.indel.vcf.gz"
-	out3="${core}.svaba.log"
+	out3="${core}.vcf.gz"
 	"""
 	set -euxo pipefail
-	svaba run -p 4 -G ${params.genome} -t ${f[0]} -z ./
+	/usr/bin/time -o "resources.t" -f "%e %M" svaba run -p 24 -G ${params.genome} -t ${f[0]} -z 
 	mv no_id.svaba.sv.vcf.gz ${out1}
 	mv no_id.svaba.indel.vcf.gz ${out2}
-	mv no_id.svaba.log ${out3}
+	bcftools index -t ${out1}
+	bcftools index -t ${out2}
+	bcftools concat ${out1} ${out2} -a -D -Oz -o ${out3}
+	tabix -p vcf ${out3} 
 	"""	
  }
 
 
-
 workflow {
-    input = Channel.fromFilePairs(params.input+"/"+samples)
+    input = Channel.fromFilePairs(params.input+samples)
    	  { fname -> fname.simpleName.replaceAll(".md.*", "")}
 
 	 main:
-		insurveyor_calling(input)
+		//insurveyor_calling(input)
 		svaba_calling(input)
 
 }
