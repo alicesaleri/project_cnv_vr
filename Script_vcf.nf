@@ -64,10 +64,14 @@ process fix_files{
 	result="${core}.svaba.fixed.vcf.gz"
 	
 	"""
-	zcat "${core}.svaba.vcf.gz" | sd "ID=GQ,Number=1,Type=String" "ID=GQ,Number=1,Type=Integer" | bgzip > ${result}
+	set -euxo pipefail
+	zcat "${core}.svaba.vcf.gz" | sd "ID=GQ,Number=1,Type=String" "ID=GQ,Number=1,Type=Integer" | sed 's/ID=PL,Number=[^,]*/ID=PL,Number=G/' | bgzip > ${result}
 	tabix -p vcf ${result}	
 	"""
 }
+
+//	zcat "${core}.svaba.vcf.gz" | sd "ID=GQ,Number=1,Type=String" "ID=GQ,Number=1,Type=Float" | bgzip > ${result}
+
 
 process truvari_ensamble {
 	cpus 2
@@ -78,28 +82,60 @@ process truvari_ensamble {
 	input:
                 tuple val(core), path(files)
 	output:
-		path("${core}.vcf.gz")
+		path("${core}.truvari.vcf.gz")
+		path("${core}.truvari.vcf.gz.tbi")
 	script:
 	out="${core}.vcf.gz"
 	"""
 	set -euxo pipefail
 	bcftools merge -m none ${files[0]} ${files[2]} ${files[4]} ${files[6]} ${files[8]} -Oz -o ${core}.merge.vcf.gz --force-samples
+	tabix -p vcf ${core}.merge.vcf.gz 
 	truvari collapse -i ${core}.merge.vcf.gz -o ${core}.truvari.vcf.gz
-	
+	tabix -p vcf ${core}.truvari.vcf.gz 
 	"""	
  }
 //truvari bench --reference ${params.genome} --base ${files[0]} --comp ${files[2]} --comp ${files[4]} --comp ${files[6]} --comp ${files[8]} -o truBench 
 
+process survivor_ensamble {
+	cpus 2
+	maxForks 4
+	module 'SURVIVOR/1.0.7'
+	memory '20GB'
+	publishDir "survivor_vcf"
+	input:
+                tuple val(core), path(files)
+	output:
+		path("${core}.survivor.vcf.gz")
+		path("${core}.survivor.vcf.gz.tbi")
+	script:
+	out="${core}.vcf.gz"
+	"""
+	set -euxo pipefail
+	module load SURVIVOR/1.0.7
+	python -c "
+	with open('files.txt', 'w') as f:
+		for i in files[0:9:2]:
+			f.write("f"{i}\n")
+	"
+		
+	SURVIVOR merge ${files[*]} 1000 1 1 -1 -1 -1 ${core}.survivor.vcf
+	tabix -p vcf ${core}.survivor.vcf.gz 
+
+	"""	
+ }
 
 workflow {
     input = Channel.fromFilePairs(params.input+samples)
    	  { fname -> fname.simpleName.replaceAll(".md.*", "")}
-	input2 = Channel.fromPath("/home/saleri/project_cnv_vr/scriptNF_running/svaba_vcf/*.vcf.gz").map{f -> def core= f.split("\\.")[0] return tuple(core,f)}
+	input2 = Channel.fromPath("/home/saleri/project_cnv_vr/scriptNF_running/svaba_vcf/*.vcf.gz").map {f -> 
+		def core= f.getBaseName().toString().split("\\.")[0] 
+		return tuple(core,f)}
    ensinput = Channel.fromFilePairs(params.directories.collect{it+ensamples}, size: 10) {fname -> fname.simpleName.replaceAll(".vcf", "") }
 	 main:
 		//insurveyor_calling(input)
 		//svaba_calling(input)
-		fix_files(input2)
+		//fix_files(input2)
+		survivor_ensamble(ensinput)
 		//truvari_ensamble(ensinput)		
 		//println(params.directories.collect{it+ensamples})
 		//ensinput.view()
