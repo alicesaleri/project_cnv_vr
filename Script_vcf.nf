@@ -111,27 +111,32 @@ process survivor_ensamble {
 	out="${core}.vcf.gz"
 	"""
 	set -euxo pipefail
-	module load SURVIVOR/1.0.7
-	python -c "
-	with open('files.txt', 'w') as f:
-		for i in files[0:9:2]:
-			f.write("f"{i}\n")
-	"
-		
-	SURVIVOR merge ${files[*]} 1000 1 1 -1 -1 -1 ${core}.survivor.vcf
+	echo "${files[0]}" >> file.txt
+	echo "${files[2]}" >> file.txt	
+	echo "${files[4]}" >> file.txt
+	echo "${files[6]}" >> file.txt
+	echo "${files[8]}" >> file.txt
+
+	SURVIVOR merge file.txt 1000 1 1 -1 -1 -1 ${core}.survivor.vcf.gz 
 	tabix -p vcf ${core}.survivor.vcf.gz 
 
 	"""	
  }
 
+
+
+
+
 workflow {
-    input = Channel.fromFilePairs(params.input+samples)
-   	  { fname -> fname.simpleName.replaceAll(".md.*", "")}
+	input = Channel.fromFilePairs(params.input+samples)
+   		{ fname -> fname.simpleName.replaceAll(".md.*", "")}
 	input2 = Channel.fromPath("/home/saleri/project_cnv_vr/scriptNF_running/svaba_vcf/*.vcf.gz").map {f -> 
 		def core= f.getBaseName().toString().split("\\.")[0] 
 		return tuple(core,f)}
-   ensinput = Channel.fromFilePairs(params.directories.collect{it+ensamples}, size: 10) {fname -> fname.simpleName.replaceAll(".vcf", "") }
-	 main:
+	ensinput = Channel.fromFilePairs(params.directories.collect{it+ensamples}, size: 10) {fname -> fname.simpleName.replaceAll(".vcf", "") }
+	
+
+	main:
 		//insurveyor_calling(input)
 		//svaba_calling(input)
 		//fix_files(input2)
