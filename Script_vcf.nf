@@ -111,8 +111,8 @@ process survivor_ensemble {
 	input:
                 tuple val(core), path(files)
 	output:
-		path("${core}.survivor.vcf.gz")
-		path("${core}.survivor.vcf.gz.tbi")
+		path("${core}.surv_rem.vcf.gz")
+		path("${core}.surv_rem.vcf.gz.tbi")
 	script:
 	"""
 	set -euxo pipefail
@@ -131,9 +131,12 @@ process survivor_ensemble {
 	
 	SURVIVOR merge file.txt 1000 1 1 -1 -1 -1 ${core}.survivor.vcf
 	bgzip ${core}.survivor.vcf
-	bcftools index -t ${core}.survivor.vcf.gz
+	zgrep -v HLA ${core}.survivor.vcf.gz | bgzip |  bcftools sort  -Oz -o ${core}.survivor_sorted.vcf.gz
+	bcftools view -e 'INFO/END < POS' ${core}.survivor_sorted.vcf.gz -o ${core}.surv_rem.vcf.gz
+	bcftools index -t ${core}.surv_rem.vcf.gz
 	"""	
- }
+}
+//bcftools norm -c ws -f ${params.genome} ${core}.survivor_sorted.vcf.gz -o ${core}.surv_norm.vcf.gz
 
 process survclusterer_ensemble {
 	cpus 2
