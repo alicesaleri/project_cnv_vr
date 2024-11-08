@@ -73,33 +73,39 @@ process fix_files{
 //	zcat "${core}.svaba.vcf.gz" | sd "ID=GQ,Number=1,Type=String" "ID=GQ,Number=1,Type=Float" | bgzip > ${result}
 
 
-process truvari_ensamble {
+process truvari_ensemble {
 	cpus 2
 	maxForks 4
 	module 'truvari'
 	memory '20GB'
 	publishDir "truvari_vcf"
 	input:
-                tuple val(core), path(files)
+                path(files)
 	output:
-		path("${core}.truvari.vcf.gz")
-		path("${core}.truvari.vcf.gz.tbi")
+		path("truvari.vcf.gz")
+		path("truvari.vcf.gz.tbi")
 	script:
-	out="${core}.vcf.gz"
 	"""
 	set -euxo pipefail
-	bcftools merge -m none ${files[0]} ${files[2]} ${files[4]} ${files[6]} ${files[8]} -Oz -o ${core}.merge.vcf.gz --force-samples
-	tabix -p vcf ${core}.merge.vcf.gz 
-	truvari collapse -i ${core}.merge.vcf.gz -o ${core}.truvari.vcf.gz
-	tabix -p vcf ${core}.truvari.vcf.gz 
+	bcftools index -t ${files}/*.vcf.gz
+	vcf_files=""
+	for file in ${files}/*.vcf.gz; do
+		vcf_files="\$vcf_files \$file"
+	done
+	bcftools merge -m none \$vcf_files -Oz -o bcftools.merge.vcf.gz --force-samples
+	bcftools index -i bcftools.merge.vcf.gz
+ 	truvari collapse -i bcftools.merge.vcf.gz -o truvari.vcf.gz
+	bcftools index -t truvari.vcf.gz 
 	"""	
  }
 //truvari bench --reference ${params.genome} --base ${files[0]} --comp ${files[2]} --comp ${files[4]} --comp ${files[6]} --comp ${files[8]} -o truBench 
+	
+//	tabix -p vcf ${core}.merge.vcf.gz 
 
-process survivor_ensamble {
+
+process survivor_ensemble {
 	cpus 2
 	maxForks 4
-	module 'SURVIVOR/1.0.7'
 	memory '20GB'
 	publishDir "survivor_vcf"
 	input:
@@ -108,23 +114,51 @@ process survivor_ensamble {
 		path("${core}.survivor.vcf.gz")
 		path("${core}.survivor.vcf.gz.tbi")
 	script:
-	out="${core}.vcf.gz"
 	"""
 	set -euxo pipefail
-	echo "${files[0]}" >> file.txt
+	zcat "${files[0]}" > vcf01.vcf
+	zcat "${files[2]}" > vcf02.vcf
+	zcat "${files[4]}" > vcf03.vcf
+	zcat "${files[6]}" > vcf04.vcf
+	zcat "${files[8]}" > vcf05.vcf
+
+	echo "vcf01.vcf" > file.txt
+	echo "vcf02.vcf" >> file.txt	
+	echo "vcf03.vcf" >> file.txt
+	echo "vcf04.vcf" >> file.txt
+	echo "vcf05.vcf" >> file.txt
+
+	
+	SURVIVOR merge file.txt 1000 1 1 -1 -1 -1 ${core}.survivor.vcf
+	bgzip ${core}.survivor.vcf
+	bcftools index -t ${core}.survivor.vcf.gz
+	"""	
+ }
+
+process survclusterer_ensemble {
+	cpus 2
+	maxForks 4
+	memory '20GB'
+	publishDir "clusterer_vcf"
+	input:
+                tuple val(core), path(files)
+	output:
+		path("${core}.clusterer.vcf.sv.gz")
+		path("${core}.clusterer.vcf.sv.gz.tbi")
+	script:
+	"""
+	set -euxo pipefail
+	echo "${files[0]}" > file.txt
 	echo "${files[2]}" >> file.txt	
 	echo "${files[4]}" >> file.txt
 	echo "${files[6]}" >> file.txt
 	echo "${files[8]}" >> file.txt
 
-	SURVIVOR merge file.txt 1000 1 1 -1 -1 -1 ${core}.survivor.vcf.gz 
-	tabix -p vcf ${core}.survivor.vcf.gz 
-
+	clusterer -d 1000 -t 4 file.txt ${params.genome} -o ${core}.clusterer.vcf
+	bgzip -k ${core}.clusterer.vcf.sv
+	tabix ${core}.clusterer.vcf.sv.gz
 	"""	
  }
-
-
-
 
 
 workflow {
@@ -133,15 +167,17 @@ workflow {
 	input2 = Channel.fromPath("/home/saleri/project_cnv_vr/scriptNF_running/svaba_vcf/*.vcf.gz").map {f -> 
 		def core= f.getBaseName().toString().split("\\.")[0] 
 		return tuple(core,f)}
-	ensinput = Channel.fromFilePairs(params.directories.collect{it+ensamples}, size: 10) {fname -> fname.simpleName.replaceAll(".vcf", "") }
-	
+	ensinput = Channel.fromFilePairs(params.directories.collect{it+ensamples}, size: 10)
+{fname -> fname.simpleName.replaceAll("","")}
+	merinput = Channel.fromPath("/home/saleri/project_cnv_vr/scriptNF_running/converted_clusterer/")	
 
 	main:
 		//insurveyor_calling(input)
 		//svaba_calling(input)
 		//fix_files(input2)
-		survivor_ensamble(ensinput)
-		//truvari_ensamble(ensinput)		
+		survivor_ensemble(ensinput)
+		//survclusterer_ensemble(ensinput)
+		//truvari_ensemble(merinput)		
 		//println(params.directories.collect{it+ensamples})
 		//ensinput.view()
 
