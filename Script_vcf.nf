@@ -87,7 +87,7 @@ process truvari_ensemble {
 	script:
 	"""
 	set -euxo pipefail
-	bcftools index -t ${files}/*.vcf.gz
+	
 	vcf_files=""
 	for file in ${files}/*.vcf.gz; do
 		vcf_files="\$vcf_files \$file"
@@ -101,7 +101,7 @@ process truvari_ensemble {
 //truvari bench --reference ${params.genome} --base ${files[0]} --comp ${files[2]} --comp ${files[4]} --comp ${files[6]} --comp ${files[8]} -o truBench 
 	
 //	tabix -p vcf ${core}.merge.vcf.gz 
-
+//bcftools index -t ${files}/*.vcf.gz
 
 process survivor_ensemble {
 	cpus 2
@@ -172,17 +172,17 @@ workflow {
 		return tuple(core,f)}
 	ensinput = Channel.fromFilePairs(params.directories.collect{it+ensamples}, size: 10)
 {fname -> fname.simpleName.replaceAll("","")}
-	merinput = Channel.fromPath("/home/saleri/project_cnv_vr/scriptNF_running/converted_clusterer/")	
+	merinput = Channel.fromPath("/home/saleri/project_cnv_vr/scriptNF_running/survivor_vcf/")	
 
 	main:
 		//insurveyor_calling(input)
 		//svaba_calling(input)
 		//fix_files(input2)
-		survivor_ensemble(ensinput)
+		//survivor_ensemble(ensinput)
 		//survclusterer_ensemble(ensinput)
-		//truvari_ensemble(merinput)		
+		truvari_ensemble(merinput)		
 		//println(params.directories.collect{it+ensamples})
-		//ensinput.view()
+		//merinput.view()
 
 
 }
