@@ -165,6 +165,29 @@ process survclusterer_ensemble {
 	"""	
  }
 
+process annotsv_annotation {
+	cpus 2
+	maxForks 4
+	module 'AnnotSV/3.4.1'
+	memory '20GB'
+	publishDir "annotsv_vcf"
+	input:
+                path(files)
+	output:
+		path("annotsv.vcf.gz")
+
+		path("annotsv.vcf.gz.tbi")
+	script:
+	"""
+	set -euxo pipefail
+
+	gunzip -k -c ${files}/*.vcf.gz > tru.vcf 
+	${ANNOTSV_DIR} -genomeBuild  GRCh38 -SVinputFile tru.vcf -outputFile annotsv.vcf
+	bgzip -k annotsv.vcf 
+	bcftools index -t annotsv.vcf.gz
+	"""	
+ }
+
 
 workflow {
 	input = Channel.fromFilePairs(params.input+samples)
@@ -175,6 +198,7 @@ workflow {
 	ensinput = Channel.fromFilePairs(params.directories.collect{it+ensamples}, size: 10)
 {fname -> fname.simpleName.replaceAll("","")}
 	merinput = Channel.fromPath("/home/saleri/project_cnv_vr/scriptNF_running/survivor_vcf/")	
+	anninput = Channel.fromPath("/home/saleri/project_cnv_vr/scriptNF_running/truvari_vcf")
 
 	main:
 		//insurveyor_calling(input)
@@ -182,9 +206,10 @@ workflow {
 		//fix_files(input2)
 		//survivor_ensemble(ensinput)
 		//survclusterer_ensemble(ensinput)
-		truvari_ensemble(merinput)		
+		//truvari_ensemble(merinput)
+		annotsv_annotation(anninput)		
 		//println(params.directories.collect{it+ensamples})
-		//merinput.view()
+		//anninput.view()
 
 
 }
