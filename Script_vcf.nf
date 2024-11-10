@@ -82,8 +82,9 @@ process truvari_ensemble {
 	input:
                 path(files)
 	output:
-		path("truvari.vcf.gz")
-		path("truvari.vcf.gz.tbi")
+		path("truvari_sorted.vcf.gz")
+
+		path("truvari_sorted.vcf.gz.tbi")
 	script:
 	"""
 	set -euxo pipefail
@@ -93,9 +94,10 @@ process truvari_ensemble {
 		vcf_files="\$vcf_files \$file"
 	done
 	bcftools merge -m none \$vcf_files -Oz -o bcftools.merge.vcf.gz --force-samples
-	bcftools index -i bcftools.merge.vcf.gz
+	bcftools index -t bcftools.merge.vcf.gz
  	truvari collapse -i bcftools.merge.vcf.gz -o truvari.vcf.gz
-	bcftools index -t truvari.vcf.gz 
+	vcf-sort truvari.vcf.gz | bgzip -c > truvari_sorted.vcf.gz
+	tabix -p vcf truvari_sorted.vcf.gz 
 	"""	
  }
 //truvari bench --reference ${params.genome} --base ${files[0]} --comp ${files[2]} --comp ${files[4]} --comp ${files[6]} --comp ${files[8]} -o truBench 
